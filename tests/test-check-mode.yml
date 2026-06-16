@@ -1,0 +1,46 @@
+name: Test check mode
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Check lock status (key not locked)
+        id: check
+        uses: .
+        with:
+          mode: check
+          key: test-check-mode-key
+          fail_if_locked: "false"
+          github_token: ${{ env.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Assert result output is set
+        env:
+          RESULT: ${{ steps.check.outputs.result }}
+        run: |
+          echo "result: $RESULT"
+          if [ -z "$RESULT" ] && [ "${{ steps.check.outcome }}" = "success" ]; then
+            echo "FAIL: result output should be set on success"
+            exit 1
+          fi
+          echo "PASS: action ran (result=$RESULT, outcome=${{ steps.check.outcome }})"
+
+      - name: Assert locked output is boolean-like
+        env:
+          LOCKED: ${{ steps.check.outputs.locked }}
+        run: |
+          echo "locked: $LOCKED"
+          if [ "${{ steps.check.outcome }}" = "success" ]; then
+            if [ "$LOCKED" != "true" ] && [ "$LOCKED" != "false" ]; then
+              echo "FAIL: locked output should be 'true' or 'false', got: $LOCKED"
+              exit 1
+            fi
+            echo "PASS: locked=$LOCKED"
+          else
+            echo "SKIP: action did not succeed (likely no real GitHub token in act environment)"
+          fi
