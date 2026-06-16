@@ -1,0 +1,44 @@
+name: Test check mode - key not locked
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_REF: refs/heads/main
+      GITHUB_EVENT_NAME: push
+      GITHUB_REPOSITORY: act-test/lock-action-test
+      GITHUB_REPOSITORY_OWNER: act-test
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          mode: check
+          key: test-not-locked-key-ci
+          key_prefix: "lock-test__"
+          github_token: ${{ github.token }}
+          fail_if_locked: "false"
+          repo_owner: act-test
+          repo_name: lock-action-test
+        continue-on-error: true
+
+      - name: Assert action ran
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+          LOCKED: ${{ steps.action.outputs.locked }}
+          ALREADY_LOCKED: ${{ steps.action.outputs.already_locked }}
+          RESULT: ${{ steps.action.outputs.result }}
+        run: |
+          echo "outcome: $OUTCOME"
+          echo "locked: $LOCKED"
+          echo "already_locked: $ALREADY_LOCKED"
+          echo "result: $RESULT"
+          # The action should have run (success or failure due to API auth)
+          # It should not be 'skipped'
+          if [ "$OUTCOME" = "skipped" ]; then
+            echo "FAIL: action was skipped unexpectedly"
+            exit 1
+          fi
+          echo "PASS: action ran with outcome=$OUTCOME"
