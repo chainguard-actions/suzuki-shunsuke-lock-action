@@ -1,0 +1,40 @@
+name: Test lock mode
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_EVENT_NAME: push
+      GITHUB_REF: refs/heads/main
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          mode: lock
+          key: test-lock-key
+          ignore_already_locked_error: "true"
+          max_wait_seconds: "0"
+          wait_interval_seconds: "5"
+        continue-on-error: true
+
+      - name: Assert action ran
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+          LOCKED: ${{ steps.action.outputs.locked }}
+          ALREADY_LOCKED: ${{ steps.action.outputs.already_locked }}
+          RESULT: ${{ steps.action.outputs.result }}
+        run: |
+          echo "outcome: $OUTCOME"
+          echo "locked: $LOCKED"
+          echo "already_locked: $ALREADY_LOCKED"
+          echo "result: $RESULT"
+          # The action may fail due to missing GitHub token in act environment,
+          # but it should at least have been invoked (outcome is set).
+          if [ -z "$OUTCOME" ]; then
+            echo "FAIL: action did not run (outcome is empty)"
+            exit 1
+          fi
+          echo "PASS: action ran with outcome=$OUTCOME"

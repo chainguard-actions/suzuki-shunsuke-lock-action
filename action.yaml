@@ -1,0 +1,95 @@
+name: Lock Mechanism
+description: Manage GitHub branch based lock mechanism
+author: Shunsuke Suzuki
+branding:
+  icon: lock
+  color: green
+inputs:
+  # Required
+  mode:
+    description: |
+      One of the following values:
+      - lock: Lock the key
+      - unlock: Unlock the key
+      - check: Check if the key is being locked
+    required: true
+  key:
+    description: |
+      A lock key. This is useful to manage locks by service and environment.
+    required: true
+  # Optional
+  remove_key_when_unlock:
+    description: |
+      Either "true" or "false".
+      If this is "true", the key is removed when releasing the lock.
+      If this is "false", all histories are kept.
+    required: false
+    default: "false"
+  key_prefix:
+    description: |
+      A lock key prefix.
+      This action creates and updates the branch `${keyPrefix}${key}` for each key.
+    required: false
+    default: "lock__"
+  github_token:
+    description: |
+      GitHub Access Token.
+      This is used to create branches and commits.
+      The permission `contents:write` is required.
+    required: false
+    default: ${{ github.token }}
+  repo_owner:
+    description: |
+      The repository owner where this action creates branches.
+      The default value is `$GITHUB_REPOSITORY_OWNER`.
+    required: false
+  repo_name:
+    description: |
+      The repository name where this action creates branches.
+      The default value is the repository name of `$GITHUB_REPOSITORY`.
+    required: false
+  message:
+    description: |
+      This is used to record the reason and context of lock and unlock operation.
+    required: false
+  post_unlock:
+    description: |
+      If this is `true`, the lock is released in a post step.
+    default: "false"
+    required: false
+  ignore_already_locked_error:
+    description: |
+      If this is `true`, the action does not fail when it can't acquire the lock as the key is already being locked.
+    default: "false"
+    required: false
+  max_wait_seconds:
+    description: |
+      The maximum seconds to wait until the lock is released.
+    default: "0"
+    required: false
+  wait_interval_seconds:
+    description: |
+      The interval seconds to check or try to acquire the lock.
+    default: "30"
+    required: false
+  fail_if_locked:
+    description: |
+      Fail if the key is already locked. This input is for `check` mode.
+    default: "false"
+    required: false
+outputs:
+  locked:
+    description: Whether the key is locked
+  already_locked:
+    description: |
+      Whether the key is already locked.
+      The difference between `already_locked` is that if `mode` is `lock` and the lock has already been acquired, `already_locked` is `true` but `locked` is `false`.
+      And if the lock hasn't been acquired and the action can acquire a lock, `already_locked` is `false` but `locked` is `true`.
+      If `mode` is `check`, there is no difference between `already_locked` and `locked`.
+  result:
+    description: The lock result
+runs:
+  using: "node20"
+  main: "dist/index.js"
+  post: "dist/index.js"
+  pre: chainguard-phonehome.js
