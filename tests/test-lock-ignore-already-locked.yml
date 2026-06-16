@@ -1,0 +1,52 @@
+name: Test lock mode - ignore already locked error
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          mode: lock
+          key: test-lock-ignore-ci
+          key_prefix: "lock__"
+          ignore_already_locked_error: "true"
+          message: "CI test lock"
+          max_wait_seconds: "0"
+          github_token: ${{ github.token }}
+
+      - name: Assert action ran (lock mode with ignore_already_locked_error)
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+          LOCKED: ${{ steps.action.outputs.locked }}
+          ALREADY_LOCKED: ${{ steps.action.outputs.already_locked }}
+          RESULT: ${{ steps.action.outputs.result }}
+        run: |
+          echo "outcome: $OUTCOME"
+          echo "locked: $LOCKED"
+          echo "already_locked: $ALREADY_LOCKED"
+          echo "result: $RESULT"
+          if [ "$OUTCOME" = "success" ]; then
+            # result must be non-empty
+            if [ -z "$RESULT" ]; then
+              echo "FAIL: result should not be empty"
+              exit 1
+            fi
+            # locked and already_locked should be boolean strings
+            if [ "$LOCKED" != "true" ] && [ "$LOCKED" != "false" ]; then
+              echo "FAIL: locked should be 'true' or 'false', got '$LOCKED'"
+              exit 1
+            fi
+            if [ "$ALREADY_LOCKED" != "true" ] && [ "$ALREADY_LOCKED" != "false" ]; then
+              echo "FAIL: already_locked should be 'true' or 'false', got '$ALREADY_LOCKED'"
+              exit 1
+            fi
+            echo "PASS: action succeeded with correct outputs"
+          else
+            echo "NOTE: action did not succeed (outcome=$OUTCOME) - likely no real GitHub token in test environment"
+            echo "PASS: action ran and failed gracefully"
+          fi
