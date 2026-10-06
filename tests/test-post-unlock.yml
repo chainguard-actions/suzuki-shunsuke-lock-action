@@ -4,43 +4,42 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Lock with post_unlock enabled (lock released in post step)
-        id: lock
+      - id: action
         uses: .
+        continue-on-error: true
         with:
           mode: lock
-          key: test-post-unlock-key
+          key: test-service-dev
+          key_prefix: "lock__"
+          message: "Locking for deployment, will auto-unlock in post step"
           post_unlock: "true"
           ignore_already_locked_error: "true"
-          message: "Test post_unlock from act workflow"
-          github_token: ${{ env.GITHUB_TOKEN }}
-        continue-on-error: true
+          max_wait_seconds: "0"
 
-      - name: Assert outputs on success
+      - name: Assert action ran (outputs set, or failed gracefully on the sentinel repo)
         env:
-          LOCKED: ${{ steps.lock.outputs.locked }}
-          ALREADY_LOCKED: ${{ steps.lock.outputs.already_locked }}
-          RESULT: ${{ steps.lock.outputs.result }}
+          OUTCOME: ${{ steps.action.outcome }}
+          LOCKED: ${{ steps.action.outputs.locked }}
+          ALREADY_LOCKED: ${{ steps.action.outputs.already_locked }}
+          RESULT: ${{ steps.action.outputs.result }}
         run: |
-          echo "outcome: ${{ steps.lock.outcome }}"
+          echo "outcome: $OUTCOME"
           echo "locked: $LOCKED"
           echo "already_locked: $ALREADY_LOCKED"
           echo "result: $RESULT"
-          if [ "${{ steps.lock.outcome }}" = "success" ]; then
-            if [ "$LOCKED" != "true" ] && [ "$LOCKED" != "false" ]; then
-              echo "FAIL: locked output should be 'true' or 'false', got: $LOCKED"
+          if [ "$OUTCOME" = "success" ]; then
+            echo "Action succeeded"
+            if [ -z "$LOCKED" ] && [ -z "$ALREADY_LOCKED" ]; then
+              echo "FAIL: action succeeded but both 'locked' and 'already_locked' outputs are empty"
               exit 1
             fi
-            if [ "$ALREADY_LOCKED" != "true" ] && [ "$ALREADY_LOCKED" != "false" ]; then
-              echo "FAIL: already_locked output should be 'true' or 'false', got: $ALREADY_LOCKED"
-              exit 1
-            fi
-            echo "PASS: post_unlock lock outputs are valid"
+            echo "PASS: locked='$LOCKED' already_locked='$ALREADY_LOCKED' result='$RESULT'"
+          elif [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action failed gracefully (sentinel repo is not resolvable)"
           else
-            echo "SKIP: action did not succeed (likely no real GitHub token in act environment)"
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
           fi

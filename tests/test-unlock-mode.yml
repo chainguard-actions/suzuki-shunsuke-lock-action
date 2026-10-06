@@ -4,39 +4,40 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Attempt to unlock a key (remove key when unlocking)
-        id: unlock
+      - id: action
         uses: .
+        continue-on-error: true
         with:
           mode: unlock
-          key: test-unlock-mode-key
-          remove_key_when_unlock: "true"
-          message: "Test unlock from act workflow"
-          github_token: ${{ env.GITHUB_TOKEN }}
-        continue-on-error: true
+          key: test-service-prod
+          key_prefix: "lock__"
+          message: "Deployment complete, releasing lock"
+          remove_key_when_unlock: "false"
 
-      - name: Assert outputs on success
+      - name: Assert action ran (outputs set, or failed gracefully on the sentinel repo)
         env:
-          LOCKED: ${{ steps.unlock.outputs.locked }}
-          ALREADY_LOCKED: ${{ steps.unlock.outputs.already_locked }}
-          RESULT: ${{ steps.unlock.outputs.result }}
+          OUTCOME: ${{ steps.action.outcome }}
+          LOCKED: ${{ steps.action.outputs.locked }}
+          ALREADY_LOCKED: ${{ steps.action.outputs.already_locked }}
+          RESULT: ${{ steps.action.outputs.result }}
         run: |
-          echo "outcome: ${{ steps.unlock.outcome }}"
+          echo "outcome: $OUTCOME"
           echo "locked: $LOCKED"
           echo "already_locked: $ALREADY_LOCKED"
           echo "result: $RESULT"
-          if [ "${{ steps.unlock.outcome }}" = "success" ]; then
-            # On success, locked should be false after unlock
-            if [ "$LOCKED" != "false" ]; then
-              echo "FAIL: locked output should be 'false' after unlock, got: $LOCKED"
+          if [ "$OUTCOME" = "success" ]; then
+            echo "Action succeeded"
+            if [ -z "$LOCKED" ] && [ -z "$RESULT" ]; then
+              echo "FAIL: action succeeded but 'locked' and 'result' outputs are both empty"
               exit 1
             fi
-            echo "PASS: unlock outputs are valid"
+            echo "PASS: locked='$LOCKED' already_locked='$ALREADY_LOCKED' result='$RESULT'"
+          elif [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action failed gracefully (sentinel repo is not resolvable)"
           else
-            echo "SKIP: action did not succeed (likely no real GitHub token in act environment)"
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
           fi

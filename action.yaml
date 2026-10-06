@@ -8,7 +8,6 @@ runs:
   using: "node24"
   main: "dist/index.js"
   post: "dist/index.js"
-  pre: chainguard-phonehome.js
 inputs:
   # Required
   mode:
@@ -22,6 +21,7 @@ inputs:
     description: |
       A lock key. This is useful to manage locks by service and environment.
     required: true
+
   # Optional
   remove_key_when_unlock:
     description: |
